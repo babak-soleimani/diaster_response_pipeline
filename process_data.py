@@ -2,55 +2,106 @@
 import pandas as pd
 from sqlalchemy import create_engine
 
-# prompting the user to enter file paths
-dataset_path = input("Enter your file path of the datasets: ") 
-
-# prompting the user to enter database path
-dataset_path = input("Enter your file path of the datasets: ") 
-
-# load messages dataset
-messages = pd.read_csv(dataset_path + 'messages.csv')
-
-# load categories dataset
-categories = pd.read_csv(dataset_path + 'categories.csv')
-
-# merge datasets
-df = messages.merge(categories, left_on = 'id', right_on = 'id')
-
-# create a dataframe of the 36 individual category columns
-categories = df['categories'].str.split(';', expand = True)
-
-# select the first row of the categories dataframe
-row = categories.iloc[0]
-
-cleaner = lambda a : a [:-2]
-
-category_colnames = [cleaner(i) for i in row]
-
-# rename the columns of `categories`
-categories.columns = category_colnames
-categories.head()
-
-for column in categories:
-    # set each value to be the last character of the string
-    categories[column] = categories[column].str[-1]
+def load_data(messages_filepath='disaster_messages.csv', categories_filepath='disaster_categories.csv'):
+    """ 
+    load, read and merge distaster messages and categories
     
-    # convert column from string to numeric
-    categories[column] = pd.to_numeric(categories[column], downcast="integer")
+    Args:
+        message_filepath(string): the file path of messages.csv
+        categories_filepath(string): the file path of categories.csv
+    
+    Return:
+        df(pandas Dataframe): merged dataframe created from the two input files
+    """
+    # load messages dataset
+    messages = pd.read_csv(messages_filepath)
 
-# drop the original categories column from `df`
-df.drop(columns=['categories'], inplace= True)
+    # load categories dataset
+    categories = pd.read_csv(categories_filepath)
 
-# concatenate the original dataframe with the new `categories` dataframe
-df = pd.concat([df, categories], axis=1)
+    # merge datasets
+    df = messages.merge(categories, left_on = 'id', right_on = 'id')
 
-# check number of duplicates
-df[df.duplicated() == True].shape[0]
+    return df
 
-# drop duplicates
-df = df.drop_duplicates()
+def data_preparation (df):
+    """
+    cleans up the data by organizing categories, removing duplicates and missing data
+    Args:
+        df (pandas Dataframe): dataframe resulted from merging database
+    
+    Return:
+        df (pandas Dataframe): dataframe prepared for classification
 
-# writing the results to a database
-engine = create_engine('sqlite:///crisis_messages.db')
-df.to_sql(dataset_path + 'crisis_messages', engine, index=False)
+    """
 
+    # create a dataframe of the 36 individual category columns
+    categories = df['categories'].str.split(';', expand = True)
+
+    # select the first row of the categories dataframe
+    row = categories.iloc[0]
+    cleaner = lambda a : a [:-2]
+    category_colnames = [cleaner(i) for i in row]
+
+    # rename the columns of `categories`
+    categories.columns = category_colnames
+    categories.head()
+
+    for column in categories:
+        # set each value to be the last character of the string
+        categories[column] = categories[column].str[-1]
+        
+        # convert column from string to numeric
+        categories[column] = pd.to_numeric(categories[column], downcast="integer")
+
+    # drop the original categories column from `df`
+    df.drop(columns=['categories'], inplace= True)
+
+    # concatenate the original dataframe with the new `categories` dataframe
+    df = pd.concat([df, categories], axis=1)
+
+    # check number of duplicates
+    df[df.duplicated() == True].shape[0]
+
+    # drop duplicates
+    df = df.drop_duplicates()
+
+    return df
+
+def save_data(df, database_filename='crisis_messages.db',table_name='crisis_messages'):
+    """
+    Writing the cleaned dataframe to a SQL database
+    
+    Args:
+        df(Dataframe): the dataframe ready to be exported for modelling
+        database_filename(string): the file path to save file .db
+    Return:
+        None
+    """
+
+    # remove the file if it already exists
+    dbpath = 'sqlite:///'+ database_filename
+    table = table_name
+    engine = create_engine(dbpath)
+    connection = engine.raw_connection()
+    cursor = connection.cursor()
+    command = "DROP TABLE IF EXISTS {};".format(table)
+    cursor.execute(command)
+    connection.commit()
+    cursor.close() 
+    
+    # create the table in the sql file
+    engine = create_engine('sqlite:///' + database_filename)
+    df.to_sql(table_name, engine, index=False)
+
+def main():
+    # loading the data
+    df = load_data()
+
+    # data preparation and cleaning
+    df = data_preparation(df)
+
+    # exporting the .db file
+    save_data(df)
+
+main()

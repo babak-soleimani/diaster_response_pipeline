@@ -2,16 +2,20 @@
 import pandas as pd
 import re
 import numpy as np
-
+import pickle
 from sqlalchemy import create_engine
 
-# nltk library and modules 
+# importing nltk library and modules 
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer 
 from nltk.stem import PorterStemmer 
 from nltk import pos_tag 
+nltk.download('punkt')
+nltk.download('wordnet')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('stopwords')
 
 # sci-kit modules
 from sklearn.metrics import confusion_matrix
@@ -22,183 +26,137 @@ from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import classification_report
 from sklearn.model_selection import GridSearchCV
-from sklearn.neural_network import MLPClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 
-# pickle
-import pickle
+def load_data (database_filepath='sqlite:///crisis_messages.db',table_name='crisis_messages',column_name='message'):
+    """
+        Load database and tables
+        Args: 
+            database_filepath (str): file path of sqlite database
+            table_name (str): name of the database table
+            column_name (str): column including messages
+        Return:
+            X (pandas dataframe): Features
+            y (pandas dataframe): Targets/ Labels
+    """
 
-# loading NLTK modules if needed
+    # connecting the sql engine to data
+    engine =  create_engine(database_filepath).connect() 
 
-nltk.download('punkt')
-nltk.download('wordnet')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('stopwords')
+    # load data from database
+    df = pd.read_sql_table(table_name, engine) 
 
-# connecting the engine to data
-engine =  create_engine('sqlite:///crisis_messages.db').connect() 
+    X = df[column_name]
+    y = df.iloc[:, 4:]
 
-# load data from database
-df = pd.read_sql_table('crisis_messages', engine) 
-
-X = df['message']
-Y = df.iloc[:, 4:]
-
-
-# ### 2. Write a tokenization function to process your text data
-
-stop_words = stopwords.words('english')
-lemmatizer = WordNetLemmatizer() 
-stemmer = PorterStemmer() 
+    return X,y
 
 def tokenize(text):
+    """
+    Returns the message text converted to its root form
+    
+    Args:
+        text(string): message
+    Returns:
+        lemmatized (list): list of the message texts converted to their root form
+    """
+
+    # retreiving the list of stop words
+    stop_words = stopwords.words('english')
+
+    # defining lemmatizer and stemmer transformers 
+    lemmatizer = WordNetLemmatizer() 
+    stemmer = PorterStemmer() 
+
     # excluding non-alphabetical and non-numeric characters
-    text = re.sub(r"[^a-zA-Z0-9]", " ", text)
+    text = re.sub(r"[^a-zA-Z0-9]", " ", text.lower())
     
     # tokenizing the text
-    words = word_tokenize(text)
+    tokens = word_tokenize(text)
+    words = [w for w in tokens if w not in stop_words]
     
-    # convert to lowercase 
-    tokenized_words = [i.lower() for i in words]
+    # stemming words
+    stemmer = PorterStemmer()
+    stemmed = [stemmer.stem(w) for w in words]
     
-    # lemmatizing and excluding stop words
-    lemmatized_words = [lemmatizer.lemmatize(i) for i in tokenized_words if i not in stop_words]
+    # Reduce words to their root form
+    lemmatizer = WordNetLemmatizer()
+    lemmatized = [lemmatizer.lemmatize(w) for w in stemmed]
     
-    # tagging the words to find verbs
-    tagged_words = pos_tag(lemmatized_words)
+    return lemmatized
+
+def model_builder():
+    """
+    Returns the classification model
     
-    # stemming verbs
-    items_number = range(len(tagged_words))
-    
-    for i in items_number:
+    Args:
+        None
+    Returns:
+        cv: Grid search model object
+    """
+    # define the step of pipeline
+    pipeline = Pipeline([
+        ('vect',CountVectorizer(tokenizer=tokenize,ngram_range=(1,2),max_df=0.75)),
+        ('tfidf', TfidfTransformer()),
+        ('clf',MultiOutputClassifier(RandomForestClassifier(n_jobs=-1)))])
 
-        tag = tagged_words[i][1]
-        word = tagged_words[i][0]
-        
-        # finding verbs identified by pos_tage and 
-        # finding words that end with "ing"
-        if (tag == 'VB' or word.endswith('ing')):
-            tagged_words[i] = stemmer.stem(word)
-        # keeping rest of the the words as they are   
-        else:
-            tagged_words[i] = word
-            
-    tokenized_sentence = ' '.join(tagged_words)
+    # define the parameters to fine tuning
+    parameters = {'vect__max_df': (0.5, 0.75, 1.0),
+        'vect__max_features': (None, 5000, 10000, 50000),
+        'vect__ngram_range': ((1, 1), (1, 2)),  # unigrams or bigrams
+        'tfidf__use_idf': (True, False),
+        'tfidf__norm': ('l1', 'l2')
+    }
 
-    return tokenized_sentence
+    cv = GridSearchCV(pipeline, param_grid=parameters)
 
+    return cv
 
-# ### 3. Build a machine learning pipeline
-# This machine pipeline should take in the `message` column as input and output classification results on the other 36 categories in the dataset. You may find the [MultiOutputClassifier](http://scikit-learn.org/stable/modules/generated/sklearn.multioutput.MultiOutputClassifier.html) helpful for predicting multiple target variables.
-
-df['message_tokenized'] = df['message'].apply(tokenize)
-
-X = df['message_tokenized']
-y = df.iloc[:, 4:40]
-
-pipeline = Pipeline([
-    ('vect', CountVectorizer(tokenizer=tokenize)),
-    ('tfidf', TfidfTransformer()),
-    ('moc', MultiOutputClassifier(RandomForestClassifier(), n_jobs=None))
-])
-
-
-# ### 4. Train pipeline
-# - Split data into train and test sets
-# - Train pipeline
-
-# splitting the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, 
-        test_size=0.2, random_state=42)
-
-# train classifier
-pipeline.fit(X_train, y_train)
-
-# # predict on test data
-y_pred = pipeline.predict(X_test)
-
-# ### 5. Test your model
-# Report the f1 score, precision and recall for each output category of the dataset. You can do this by iterating through the columns and calling sklearn's `classification_report` on each.
 
 def display_results(y_test, y_pred):
-    n = 0
+    """
+    Displays the results of prediction using the model
     
+    Args:
+        y_test (pandas dataframe): actual values of the y dataset
+        y_pred (pandas datafrane): predicted values using the model
+    Returns:
+        None
+    """    
+    n = 0
     for label in y_test.columns:
-        
         pred = np.transpose(y_pred)[n]
         test = y_test.iloc[:, n]
-        
-        print (label)
-        print (classification_report(pred, test))
-#         print (accuracy_score(test, pred))
+        print(label, classification_report(pred, test))
         n += 1  
 
-display_results(y_test, y_pred) 
 
+def model_trainer(filename = 'disaster_response_classifier.pkl'):
+    """
+    Trains the model and exports a pickle file
+    
+    Args:
+        filename (str): name of the pickle file to export
+    Returns:
+        None
+    """      
+    # loading the data
+    X, y = load_data()
 
-# ### 6. Improve your model
-# Use grid search to find better parameters. 
+    # splitting the data into training and test
+    X_train, X_test, y_train, y_test = train_test_split(X, y, 
+            test_size=0.3, random_state=42)
 
-pipeline = Pipeline([
-    ('vect', CountVectorizer(tokenizer=tokenize)),
-    ('tfidf', TfidfTransformer()),
-#     ('clf', RandomForestClassifier()),
-    # using multioutputclassifier to enables mapping to multiple outputs
-    ('moc', MultiOutputClassifier(RandomForestClassifier(), n_jobs=None))
-])
+    # building the model
+    model = model_builder()
 
-parameters = {'vect__max_df': (0.5, 0.75, 1.0),
-    'vect__max_features': (None, 5000, 10000, 50000),
-    'vect__ngram_range': ((1, 1), (1, 2)),  # unigrams or bigrams
-    'tfidf__use_idf': (True, False),
-    'tfidf__norm': ('l1', 'l2')
-             }
+    # fitting the model using the training data
+    model.fit(X_train, y_train)
 
-cv =  GridSearchCV(pipeline, param_grid=parameters)
+    # displaying results
+    y_pred = model.predict(X_test)
+    display_results(y_test, y_pred) 
 
-cv.fit(X_train, y_train)
-y_pred = cv.predict(X_test)
+    # save the model to disk
+    pickle.dump(model, open(filename, 'wb'))
 
-
-# ### 7. Test your model
-# Show the accuracy, precision, and recall of the tuned model.  
-# 
-# Since this project focuses on code quality, process, and  pipelines, there is no minimum performance metric needed to pass. However, make sure to fine tune your models for accuracy, precision and recall to make your project stand out - especially for your portfolio!
-
-display_results(y_test, y_pred)
-
-
-# ### 8. Try improving your model further. Here are a few ideas:
-# * try other machine learning algorithms
-# * add other features besides the TF-IDF
-
-classifiers = [
-    KNeighborsClassifier(3),
-    DecisionTreeClassifier(max_depth=5),
-    MLPClassifier(alpha=1, max_iter=1000),
-    AdaBoostClassifier(),
-    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)
-    ]
-
-for classifier in classifiers:    
-    enhanced_pipelines = Pipeline([
-    ('vect', CountVectorizer(tokenizer=tokenize)),
-    ('tfidf', TfidfTransformer()),
-    ('moc', MultiOutputClassifier(classifier, n_jobs=None))
-    ])
-
-    # train classifier
-    enhanced_pipelines.fit(X_train, y_train)
-
-    # predict on test data
-    y_pred = enhanced_pipelines.predict(X_test)
-
-    display_results(y_test, y_pred)  
-
-
-# ### 9. Export your model as a pickle file
-# save the model to disk
-filename = 'disaster_response_classifier.sav'
-pickle.dump(enhanced_pipelines, open(filename, 'wb'))
+model_trainer()
