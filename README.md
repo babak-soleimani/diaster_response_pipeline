@@ -7,21 +7,20 @@ This project takes the dataset from Figure8 to label to train a model that can a
 in relevant categories. This project can effectively address this task in future disasters. 
 
 ## Files in the repository
+* `app` folder containing 
+    * `template` folder containing
+        * `master.html` main page of web app
+        * `go.html` # classification result page of web app
+    * `run.py` Flask file that defines and runs app
+* `data` folder containing 
+    * `disaster_categories.csv` message categories to process
+    * `disaster_messages.csv` raw disaster messages to process
+    * `process_data.py` contains the script that prepares the data for classification
+    * `crisis_messages.db` database to save clean data to
+* `models` # folder containing 
+    * `train_classifer.py` script to model and train the data using randomforest
 
-app
-| - template # folder containing
-| |- master.html # main page of web app
-| |- go.html # classification result page of web app
-|- run.py # Flask file that defines and runs app
-data
-|- disaster_categories.csv # message categories to process
-|- disaster_messages.csv # raw disaster messages to process
-|- process_data.py # contains the script that prepares the data for classification
-|- crisis_messages.db # database to save clean data to
-models
-|- train_classifier.py # script to train the dataset and create the model
-
-README.md
+* `README.md`
 
 
 ### Instructions:
