@@ -1,5 +1,12 @@
 # Disaster Response Pipeline Project
 
+## Introduction
+Follwoing a disaster, agencies receive millions of messages, either directly or through social media. This is when these organizations have limited capacity to analyze and organize this data to filter them and to pull out the most important messages. This categorization is important since each organization is responsible for a different set of issues. 
+
+This project takes the dataset from Figure8 to label to train a model that can automatically classify new incoming messages
+in relevant categories. This project can effectively address this task in future disasters. 
+
+
 ### Instructions:
 1. Run the following commands in the project's root directory to set up your database and model.
 
@@ -11,4 +18,4 @@
 2. Run the following command in the app's directory to run your web app.
     `python run.py`
 
-3. Go to http://0.0.0.0:3001/
+3. Open another terminal, run env|grep WORK. You'll see the following output WORKSPACEDOMAIN=udacity-student-workspaces.com WORKSPACEID=view6914b2f4 Now, use the above information to open https://view6914b2f4-3001.udacity-student-workspaces.com/ (general format - https://WORKSPACEID-3001.WORKSPACEDOMAIN/)
