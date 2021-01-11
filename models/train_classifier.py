@@ -28,7 +28,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import classification_report
 from sklearn.model_selection import GridSearchCV
 
-def load_data (database_filepath):
+def load_data(database_filepath='../data/crisis_messages.db', table_name= 'crisis_messages'):
     """
         Load database and tables
         Args: 
@@ -40,11 +40,12 @@ def load_data (database_filepath):
     """
 
     # connecting the sql engine to data
-    data_file = 'sqlite:///' +  database_filepath + '.db'
+    data_file = 'sqlite:///' +  database_filepath
+    
     engine =  create_engine(data_file).connect() 
 
     # load data from database
-    df = pd.read_sql_table(database_filepath, engine) 
+    df = pd.read_sql_table(table_name, engine) 
 
     X = df['message']
     y = df.iloc[:, 4:]
@@ -66,8 +67,7 @@ def tokenize(text):
 
     # defining lemmatizer and stemmer transformers 
     lemmatizer = WordNetLemmatizer() 
-    stemmer = PorterStemmer() 
-
+    
     # excluding non-alphabetical and non-numeric characters
     text = re.sub(r"[^a-zA-Z0-9]", " ", text.lower())
     
@@ -75,14 +75,10 @@ def tokenize(text):
     tokens = word_tokenize(text)
     words = [w for w in tokens if w not in stop_words]
     
-    # stemming words
-    stemmer = PorterStemmer()
-    stemmed = [stemmer.stem(w) for w in words]
-    
     # Reduce words to their root form
     lemmatizer = WordNetLemmatizer()
-    lemmatized = [lemmatizer.lemmatize(w) for w in stemmed]
-    
+    lemmatized = [lemmatizer.lemmatize(w) for w in words]
+
     return lemmatized
 
 def build_model():
@@ -96,15 +92,14 @@ def build_model():
     """
     # define the step of pipeline
     pipeline = Pipeline([
-        ('vect',CountVectorizer(tokenizer=tokenize),
+        ('vect',CountVectorizer(tokenizer=tokenize,ngram_range=(1,2))),
         ('tfidf', TfidfTransformer()),
-        ('clf',MultiOutputClassifier(RandomForestClassifier(n_jobs=-1)))])
+        ('clf',MultiOutputClassifier(RandomForestClassifier(n_jobs=-1)))
+         ])
 
     # define the parameters to fine tuning
-    parameters = {'vect__max_df': (0.5, 0.75, 1.0)
-        'vect__max_features': (None, 5000, 10000, 50000),
-        'vect__ngram_range': ((1, 1), (1, 2)),  # unigrams or bigrams
-        'tfidf__use_idf': (True, False),
+    parameters = {'vect__max_features': (None, 5000, 10000, 30000),
+        'vect__max_df': (0.5, 0.75),
         'tfidf__norm': ('l1', 'l2')
     }
 
