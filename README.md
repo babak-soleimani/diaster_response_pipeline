@@ -6,6 +6,18 @@ Follwoing a disaster, agencies receive millions of messages, either directly or 
 This project takes the dataset from Figure8 to label to train a model that can automatically classify new incoming messages
 in relevant categories. This project can effectively address this task in future disasters. 
 
+## Required Libraries
+* `Pandas`
+* `NLTK`
+* `scikit-learn`
+* `Numpy`
+* `sys`
+* `pickle`
+* `sqlalchemy`
+* `json`
+* `flask`
+* `plotly`
+
 ## Files in the repository
 * `app` folder containing 
     * `template` folder containing
