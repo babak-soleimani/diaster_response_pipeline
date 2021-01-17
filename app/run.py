@@ -40,12 +40,26 @@ def index():
     
     # extract data needed for visuals
     # TODO: Below is an example - modify to extract data for your own visuals
+    
+    # genre visualiztion data
     genre_counts = df.groupby('genre').count()['message']
     genre_names = list(genre_counts.index)
     
+    # category visualization data
+    category_counts = df.iloc[:, 5:].sum().values
+    category_names = df.iloc[:, 5:].columns.tolist()
+    
+    # related visualization data
+    
+    df['related'] = df['related'].replace({0: "NO", 1: "YES"})
+    related_names = df['related'].value_counts().index.tolist()
+    related_counts = df['related'].value_counts().values
+
     # create visuals
     # TODO: Below is an example - modify to create your own visuals
     graphs = [
+        
+    # genre visualization graph
         {
             'data': [
                 Bar(
@@ -63,8 +77,49 @@ def index():
                     'title': "Genre"
                 }
             }
+        },
+        
+    # category visualization graph
+        {
+            'data': [
+                Bar(
+                    x=category_names,
+                    y=category_counts
+                )
+            ],
+
+            'layout': {
+                'title': 'Distribution of Message Categories',
+                'yaxis': {
+                    'title': "Count"
+                },
+                'xaxis': {
+                    'title': "Categories"
+                }
+            }
+        },
+        
+    # related visualization graph
+        {
+            'data': [
+                Bar(
+                    x=related_names,
+                    y=related_counts
+                )
+            ],
+
+            'layout': {
+                'title': 'Distribution of Related Message',
+                'yaxis': {
+                    'title': "Count"
+                },
+                'xaxis': {
+                    'title': "Related"
+                }
+            }
         }
     ]
+
     
     # encode plotly graphs in JSON
     ids = ["graph-{}".format(i) for i, _ in enumerate(graphs)]
